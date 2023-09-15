@@ -1,7 +1,24 @@
 const router = require('express').Router();
+const jwt=require('jsonwebtoken')
+const bcrypt=require('bcryptjs')
+const Users=require('./auth-model')
+const { checkUsernameFree,
+        checkExist, 
+        checkUsernameExists }=require('./../middleware/additional')
 
-router.post('/register', (req, res) => {
-  res.end('implement register, please!');
+router.post('/register', checkExist, checkUsernameFree,(req, res,next) => {
+  
+    let user = req.body
+    const hash = bcrypt.hashSync(user.password, 8)
+    user.password = hash
+    Users.add(user)
+        .then(saved=>{
+          res.status(201).json(saved)
+        })
+        .catch(next)
+});
+   
+ 
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -27,10 +44,22 @@ router.post('/register', (req, res) => {
     4- On FAILED registration due to the `username` being taken,
       the response body should include a string exactly as follows: "username taken".
   */
-});
 
-router.post('/login', (req, res) => {
-  res.end('implement login, please!');
+
+
+router.post('/login', checkExist,checkUsernameExists, (req, res,next) => {
+  const { username, password } = req.body
+  Users.findBy({ username })
+    .then(user => {
+      if (user && bcrypt.compareSync(password, user.password)) {
+        const token = generateToken(user)
+        res.status(200).json({ message: `welcome, ${username}`, token })
+      } else {
+        res.status(401).json({ message: 'Invalid Credentials' })
+      }
+    })
+    .catch(next)
+
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -55,5 +84,13 @@ router.post('/login', (req, res) => {
       the response body should include a string exactly as follows: "invalid credentials".
   */
 });
+function generateToken(user) {
+  const payload = {
+    subject: user.id,
+    username: user.username,
+  }
+  const options = { expiresIn: '1d' }
+  return jwt.sign(payload, "keep it secret ,keep it safe", options)
 
+}
 module.exports = router;
